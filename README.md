@@ -1,410 +1,150 @@
-Crop-AI × CropHarvest 学习与实验记录（必读）
+# Crop-AI × CropHarvest 学习与实验记录（必读）
 
+> 给未来自己的“防迷路文档”  
+> 目标：**能复现、能解释、能继续迭代**。
 
+## 📌 目录（Table of Contents）
 
-⚠️ 这是给未来自己的“防迷路文档”
+- [1️⃣ 当前已经跑通什么](#1️⃣-当前已经跑通什么)
+- [2️⃣ 目录结构与数据放置](#2️⃣-目录结构与数据放置)
+- [3️⃣ CropHarvest 的真实数据流](#3️⃣-cropharvest-的真实数据流)
+- [4️⃣ 18 个 EO 特征与 12 个月](#4️⃣-18-个-eo-特征与-12-个月)
+- [5️⃣ 为什么输入是 216 维](#5️⃣-为什么输入是-216-维)
+- [6️⃣ 已验证的“稳定环境版本”](#6️⃣-已验证的稳定环境版本)
+- [7️⃣ 已踩过的坑（不要再踩）](#7️⃣-已踩过的坑不要再踩)
+- [8️⃣ 我现在应该从哪里继续学](#8️⃣-我现在应该从哪里继续学)
+- [9️⃣ 延伸阅读与笔记](#9️⃣-延伸阅读与笔记)
 
-记录：这个项目现在已经跑通了什么、关键概念是什么、哪些坑已经踩过。
+---
 
+## 1️⃣ 当前已经跑通什么
 
+截至目前（以 `src/experiments/exp_02_togo_demo.py` 为准）：
 
-1️⃣ 这个项目现在「已经完成」了什么
+- ✅ Docker + Python 3.10 + venv 中运行 CropHarvest
+- ✅ 使用 PyPI 版本 `cropharvest==0.7.0`
+- ✅ 离线加载 Benchmark 数据集（Togo）
+- ✅ 训练并评估 RandomForest 基线模型（AUC≈0.85，F1≈0.82）
+- ✅ 能从 (N, 12, 18) / (N, 216) 两种形态理解输入
 
+快速验证：
+```bash
+cd /workspace/crop-ai/src/experiments
+python exp_02_togo_demo.py
+```
 
+---
 
-截至目前（以 exp\_02\_togo\_demo.py 为准）：
+## 2️⃣ 目录结构与数据放置
 
+**关键：`data/` 结构必须符合 CropHarvest 预期**（否则它会尝试重新下载）。
 
-
-✅ 成功在 Docker + Python 3.10 + venv 中运行 CropHarvest
-
-
-
-✅ 成功使用 官方 PyPI 版本 cropharvest==0.7.0
-
-
-
-✅ 成功加载 Benchmark 数据集（Togo）
-
-
-
-✅ 成功训练并评估一个 RandomForest 基线模型
-
-
-
-✅ 明确理解了 EO 特征 → 时间序列 → 模型输入 的完整数据流
-
-
-
-当前跑通的核心输出示例：
-
-
-
-X shape: (4142, 216)
-
-y shape: (4142,)
-
-
-
-auc\_roc: 0.84+
-
-f1\_score: 0.82+
-
-
-
-2️⃣ 项目目录结构（当前有效）
-
+```
 crop-ai/
-
-├── data/                       # CropHarvest 标准数据目录（关键）
-
+├── data/
 │   ├── features/
-
-│   │   ├── arrays/             # 训练用 .h5（核心）
-
-│   │   └── normalizing\_dict.h5
-
-│   ├── test\_features/          # 测试集特征
-
-│   └── labels.geojson          # 作物 / 非作物标签
-
+│   │   ├── arrays/              # 训练用 .h5（核心）
+│   │   └── normalizing_dict.h5  # 归一化参数
+│   ├── test_features/           # 测试集特征
+│   └── labels.geojson           # 标签（GeoJSON）
 │
+└── src/experiments/
+    ├── exp_01_load_cropharvest.py
+    ├── exp_02_togo_demo.py
+    ├── exp_03_plot_ndvi.py
+    └── the-18.py
+```
 
-├── src/
+---
 
-│   └── experiments/
+## 3️⃣ CropHarvest 的真实数据流
 
-│       ├── exp\_01\_load\_cropharvest.py   # 最小加载验证
+一句话版：
 
-│       └── exp\_02\_togo\_demo.py           # 官方 Togo demo（已跑通）
+> **labels（样本点+标签） → 预处理特征（features/test_features） → Dataset API → 模型训练/评估 → 推理**
 
-│
+更详细解释见：[`docs/01_workflow.md`](docs/01_workflow.md)
 
-├── docker/                     # Dockerfile（Ubuntu 22.04 + Py3.10）
+---
 
-├── requirements.txt            # 仅作参考，实际以 pip install 为准
+## 4️⃣ 18 个 EO 特征与 12 个月
 
-└── README.md                   # ← 本文件
+最终进入模型的 18 个 band（按包内定义）：
 
+- Sentinel-1（雷达）：VV, VH（2）
+- Sentinel-2（光学）：B2, B3, B4, B5, B6, B7, B8, B8A, B9, B11, B12（11）
+- ERA5（气候）：temperature_2m, total_precipitation（2）
+- SRTM（地形）：elevation, slope（2）
+- 派生指数：NDVI（1）
 
+详细解释与直觉见：[`docs/04_ndvi.md`](docs/04_ndvi.md)
 
+---
 
+## 5️⃣ 为什么输入是 216 维
 
-⚠️ 注意：
+- 时序长度：12（≈ 12 个月）
+- 每个时间步特征：18 个 band
 
-data/ 目录结构必须严格符合 CropHarvest 预期，否则 Dataset 会尝试重新下载。
+所以：`12 × 18 = 216`
 
+- `flatten_x=True` → `(N, 216)`（适合 RandomForest / XGBoost）
+- `flatten_x=False` → `(N, 12, 18)`（适合 RNN / Transformer）
 
+---
 
-3️⃣ CropHarvest 的「真实工作流」（不是文档版）
+## 6️⃣ 已验证的“稳定环境版本”
 
-一句话版
+> 这套版本在你当前 Docker 环境中已经跑通。**尽量别乱升级**。
 
+- Python 3.10.12
+- cropharvest 0.7.0
+- numpy 1.26.4
+- pandas 1.5.3
+- geopandas 0.9.0
+- shapely 1.8.5.post1
+- fiona 1.8.22
+- xarray 0.19.0
+- scikit-learn 1.7.x
+- matplotlib 3.10.x（用于画图）
 
+为什么要锁版本见：[`docs/02_environment.md`](docs/02_environment.md)
 
-标签点 → EO 数据 → 工程化特征 → 时间序列 → ML 模型
+---
 
+## 7️⃣ 已踩过的坑（不要再踩）
 
+- ❌ `numpy >= 2.0` 触发 pandas / geopandas 二进制不兼容（你踩过）
+- ❌ `shapely >= 2.0` 会破坏 `geopandas==0.9.0` 依赖
+- ❌ `fiona` 版本过新导致 geopandas 读取异常（你踩过）
+- ❌ 让 Dataset 自动 `download=True`：网络/Zenodo 不稳定 → 空文件/坏包
+- ❌ PyCharm 远程同步把本地空文件覆盖容器（你踩过）
 
-真实顺序（你已经跑通）
+完整“防坑指南”见：[`docs/05_git_pycharm_sync.md`](docs/05_git_pycharm_sync.md)
 
+---
 
+## 8️⃣ 我现在应该从哪里继续学
 
-labels.geojson
+推荐顺序：
 
+1) `exp_03_plot_ndvi.py`：把 **Crop vs Non-crop** 的 NDVI 画出来（先“看见”差异）  
+2) `the-18.py`：确认 18 个特征定义来自哪里（BANDS）  
+3) 扩展：画更多 band（VV/VH、降水、温度）做对比  
+4) 做一版 feature importance（RandomForest）理解“模型到底靠什么判断”
 
+---
 
-每一行是一个经纬度样本点
+## 9️⃣ 延伸阅读与笔记
 
+- 工作流：[`docs/01_workflow.md`](docs/01_workflow.md)
+- 环境与版本：[`docs/02_environment.md`](docs/02_environment.md)
+- 实验脚本说明：[`docs/03_experiments.md`](docs/03_experiments.md)
+- NDVI 与物理直觉：[`docs/04_ndvi.md`](docs/04_ndvi.md)
+- Git / PyCharm / Docker 同步踩坑：[`docs/05_git_pycharm_sync.md`](docs/05_git_pycharm_sync.md)
 
+---
 
-含 is\_crop 标签
-
-
-
-EO 数据（已预处理）
-
-
-
-Sentinel-1（雷达）
-
-
-
-Sentinel-2（光学）
-
-
-
-ERA5（气候）
-
-
-
-SRTM（地形）
-
-
-
-Engineer 阶段（已完成）
-
-
-
-12 个时间窗口（≈ 12 个月）
-
-
-
-每个窗口提取 18 个 EO 特征
-
-
-
-输出 .h5
-
-
-
-Dataset API
-
-
-
-X, y = dataset.as\_array(flatten\_x=True)
-
-
-
-4️⃣ 你现在用的「18 个 EO 特征」【极其重要】
-
-
-
-最终进入模型的特征定义在：
-
-
-
-from cropharvest.bands import BANDS
-
-
-
-
-
-内容等价于：
-
-
-
-Sentinel-1（雷达，2 个）
-
-
-
-VV
-
-
-
-VH
-
-
-
-Sentinel-2（光学，11 个，已移除 B1 / B10）
-
-
-
-B2, B3, B4, B5, B6, B7
-
-
-
-B8, B8A, B9
-
-
-
-B11, B12
-
-
-
-ERA5（气候，2 个）
-
-
-
-temperature\_2m
-
-
-
-total\_precipitation
-
-
-
-SRTM（地形，2 个）
-
-
-
-elevation
-
-
-
-slope
-
-
-
-派生指数（1 个）
-
-
-
-NDVI
-
-
-
-👉 合计：18 个特征
-
-
-
-5️⃣ 为什么模型输入是 216 维？
-
-12 个时间步 × 18 个 EO 特征 = 216
-
-
-
-
-
-flatten\_x=True → (N, 216) → 给 RandomForest / XGBoost
-
-
-
-flatten\_x=False → (N, 12, 18) → 给 RNN / Transformer
-
-
-
-6️⃣ 当前稳定可用的 Python 环境（已验证）
-
-Python        3.10.12
-
-cropharvest  0.7.0
-
-numpy        1.26.4
-
-pandas       1.5.3
-
-geopandas    0.9.0
-
-shapely      1.8.5.post1
-
-fiona        1.8.22
-
-xarray       0.19.0
-
-scikit-learn 1.7.x
-
-
-
-
-
-⚠️ 重要经验：
-
-
-
-❌ numpy ≥ 2.0 会导致 pandas / geopandas 二进制崩
-
-
-
-❌ shapely ≥ 2.0 会破坏 geopandas 0.9
-
-
-
-不要随便升级
-
-
-
-7️⃣ 已踩过的坑（以后别再踩）
-
-
-
-❌ 直接运行 cropharvest/eo/\*
-
-→ 会触发 Earth Engine（需要 earthengine-api）
-
-
-
-❌ pip install -e . 安装 GitHub 源码
-
-→ .egg-info 冲突
-
-
-
-❌ 让 Dataset 自动 download（网络/Zenodo 很不稳定）
-
-
-
-❌ 用 Python 3.12（distutils、生态不兼容）
-
-
-
-8️⃣ 当前「最可信」的学习入口
-
-
-
-你现在唯一推荐的参考方式：
-
-
-
-exp\_02\_togo\_demo.py
-
-
-
-
-
-因为它：
-
-
-
-不依赖 Earth Engine
-
-
-
-不依赖在线下载
-
-
-
-使用完整 EO 特征
-
-
-
-是官方 benchmark 流程
-
-
-
-9️⃣ 下一步可以做什么（可选）
-
-
-
-🔍 看 18 个特征在 12 个月的时序行为
-
-
-
-📊 画 作物 vs 非作物 NDVI 年曲线
-
-
-
-🧠 分析 RandomForest feature\_importances\_
-
-
-
-🔁 换国家，看泛化能力
-
-
-
-🤖 把 (12,18) 输入给 LSTM / Transformer
-
-
-
-10️⃣ 最重要的一句话（写给未来的你）
-
-
-
-如果你迷路了：
-
-
-
-激活 venv
-
-
-
-cd src/experiments
-
-
-
-python exp\_02\_togo\_demo.py
-
-
-
-只要它还能跑，你就没白走。
-
+> 如果你迷路了：  
+> `cd src/experiments && python exp_02_togo_demo.py`  
+> 只要它还能跑，你就没白走。

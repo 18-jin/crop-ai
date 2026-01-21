@@ -21,3 +21,4 @@ data/*.tar.gz
 # Logs
 *.log
 
+*.swp
