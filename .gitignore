@@ -1,0 +1,23 @@
+# Python
+__pycache__/
+*.pyc
+.venv/
+venv/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Data (VERY IMPORTANT)
+data/features/
+data/test_features/
+data/labels.geojson
+data/*.tar.gz
+
+# IDE
+.idea/
+.vscode/
+
+# Logs
+*.log
+
